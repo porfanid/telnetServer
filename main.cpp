@@ -12,6 +12,8 @@ using boost::asio::ip::tcp;
 
 std::atomic<bool> running(true);
 
+char delimeter = '\u001B';
+
 void signal_handler(int signal) {
     if (signal == SIGTERM) {
         std::cout << "\nReceived SIGTERM, shutting down server...\n";
@@ -19,7 +21,7 @@ void signal_handler(int signal) {
     }
 }
 
-void stream_ascii_content(tcp::socket& socket, const std::string& filename) {
+void stream_ascii_content(tcp::socket& socket, const std::string& filename, const std::string& delimiter = "\x1B[H") {
     try {
         // Open the ASCII art file (e.g., ASCII movie)
         std::ifstream file(filename);
@@ -28,10 +30,27 @@ void stream_ascii_content(tcp::socket& socket, const std::string& filename) {
             return;
         }
 
+        // Read the entire file into a string
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string content = buffer.str();
+
+        size_t pos = 0;
         std::string line;
-        while (running && std::getline(file, line)) {
-            boost::asio::write(socket, boost::asio::buffer(line + "\r\n"));
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate frame delay (100ms)
+
+        // Split by the custom delimiter
+        while (running && (pos = content.find(delimiter)) != std::string::npos) {
+            line = content.substr(0, pos);  // Get the substring until the delimiter
+            content.erase(0, pos + delimiter.length());  // Remove processed part and delimiter from content
+
+            // Write to the socket
+            boost::asio::write(socket, boost::asio::buffer(line + delimiter));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Simulate frame delay (100ms)
+        }
+
+        // Send the remaining content, if any
+        if (!content.empty() && running) {
+            boost::asio::write(socket, boost::asio::buffer(content + delimiter));
         }
 
         std::cout << "Streaming completed or connection closed." << std::endl;
@@ -39,6 +58,8 @@ void stream_ascii_content(tcp::socket& socket, const std::string& filename) {
         std::cerr << "Exception: " << e.what() << std::endl;
     }
 }
+
+
 
 void handle_client(tcp::socket socket, const std::string& filename) {
     try {
