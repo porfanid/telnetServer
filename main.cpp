@@ -12,8 +12,6 @@ using boost::asio::ip::tcp;
 
 std::atomic<bool> running(true);
 
-char delimeter = '\u001B';
-
 void signal_handler(int signal) {
     if (signal == SIGTERM) {
         std::cout << "\nReceived SIGTERM, shutting down server...\n";
